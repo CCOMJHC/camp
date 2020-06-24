@@ -7,9 +7,16 @@
 #include <QDebug>
 #include "platform.h"
 #include "autonomousvehicleproject.h"
+#include "surveyarea.h"
+
+#include <boost/geometry.hpp>
+#include <boost/geometry/geometries/point_xy.hpp>
+#include <boost/geometry/geometries/polygon.hpp>
+
+namespace bg = boost::geometry;
 
 SurveyPattern::SurveyPattern(MissionItem *parent):GeoGraphicsMissionItem(parent),
-    m_startLocation(nullptr),m_endLocation(nullptr),m_spacing(1.0),m_direction(0.0),m_arcCount(6),m_spacingLocation(nullptr),m_maxSegmentLength(0.0),m_internalUpdateFlag(false)
+    m_startLocation(nullptr),m_endLocation(nullptr),m_spacing(1.0),m_direction(0.0),m_alignment(Alignment::start),m_spacingLocation(nullptr),m_internalUpdateFlag(false)
 {
     setShowLabelFlag(true);
 }
@@ -90,20 +97,9 @@ void SurveyPattern::calculateFromWaypoints()
 }
 
 
-void SurveyPattern::setArcCount(int ac)
-{
-    m_arcCount = ac;
-    update();
-}
-
-void SurveyPattern::setMaxSegmentLength(double maxLength)
-{
-    m_maxSegmentLength = maxLength;
-    update();
-}
-
 void SurveyPattern::write(QJsonObject &json) const
 {
+    MissionItem::write(json);
     json["type"] = "SurveyPattern";
     if(m_startLocation)
     {
@@ -119,6 +115,36 @@ void SurveyPattern::write(QJsonObject &json) const
     }
     json["spacing"] = m_spacing;
     json["direction"] = m_direction;
+    switch(m_alignment)
+    {
+        case start:
+            json["alignment"] = "start";
+            break;
+        case center:
+            json["alignment"] = "center";
+            break;
+        case finish:
+            json["alignment"] = "finish";
+            break;
+    }
+    QJsonArray tracklineArray;
+    auto lines = getLines();
+    for (auto line: lines){
+        QJsonObject tracklineObject;
+        tracklineObject["type"] = "TrackLine";
+        QJsonArray wpArray;
+        for (auto wp: line)
+        {
+            QJsonObject wpObject;
+            wpObject["type"] = "Waypoint";
+            wpObject["latitude"] = wp.latitude();
+            wpObject["longitude"] = wp.longitude();
+            wpArray.append(wpObject);
+        }
+        tracklineObject["waypoints"] = wpArray;
+        tracklineArray.append(tracklineObject);
+    }
+    json["children"] = tracklineArray;
 }
 
 void SurveyPattern::writeToMissionPlan(QJsonArray& navArray) const
@@ -150,10 +176,7 @@ void SurveyPattern::writeToMissionPlan(QJsonArray& navArray) const
             delete temp_wp;
         }
         navItem["nav"] = pathNavArray;
-        if(m_arcCount>0 && i%2 == 1)
-            navItem["type"] = "turn";
-        else
-            navItem["type"] = "survey_line";
+        navItem["type"] = "survey_line";
         navArray.append(navItem);
     }    
 }
@@ -165,6 +188,15 @@ void SurveyPattern::read(const QJsonObject &json)
     m_endLocation = createWaypoint();
     m_endLocation->read(json["endLocation"].toObject());
     setDirectionAndSpacing(json["direction"].toDouble(),json["spacing"].toDouble());
+    if(json.contains("alignment"))
+    {
+        if(json["alignment"] == "start")
+            m_alignment = start;
+        if(json["alignment"] == "center")
+            m_alignment = center;
+        if(json["alignment"] == "finish")
+            m_alignment = finish;
+    }
     calculateFromWaypoints();
 }
 
@@ -184,6 +216,12 @@ double SurveyPattern::direction() const
     return m_direction;
 }
 
+SurveyPattern::Alignment SurveyPattern::alignment() const
+{
+    return m_alignment;
+}
+
+
 double SurveyPattern::lineLength() const
 {
     return m_lineLength;
@@ -192,16 +230,6 @@ double SurveyPattern::lineLength() const
 double SurveyPattern::totalWidth() const
 {
     return m_totalWidth;
-}
-
-int SurveyPattern::arcCount() const
-{
-    return m_arcCount;
-}
-
-double SurveyPattern::maxSegmentLength() const
-{
-    return m_maxSegmentLength;
 }
 
 Waypoint * SurveyPattern::startLocationWaypoint() const
@@ -223,6 +251,15 @@ void SurveyPattern::setDirectionAndSpacing(double direction, double spacing)
     setSpacingLocation(c,false);
     m_internalUpdateFlag = false;
 }
+
+void SurveyPattern::setAlignment(SurveyPattern::Alignment alignment)
+{
+    prepareGeometryChange();
+    m_alignment = alignment;
+    qDebug() << "alignment: " << alignment;
+    update();
+}
+
 
 void SurveyPattern::setLineLength(double lineLength)
 {
@@ -347,45 +384,6 @@ void SurveyPattern::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
 
 }
 
-void SurveyPattern::updateLabel()
-{
-    double cumulativeDistance = 0.0;
-    
-    auto lines = getLines();
-    for (auto l: lines)
-        if (l.length() > 1)
-        {
-            auto first = l.begin();
-            auto second = first;
-            second++;
-            while(second != l.end())
-            {
-                cumulativeDistance += first->distanceTo(*second);
-                first++;
-                second++;
-            }
-        }
-
-    double distanceInNMs = cumulativeDistance*0.000539957; // meters to NMs.
-    QString label = "Distance: "+QString::number(int(cumulativeDistance))+" (m), "+QString::number(distanceInNMs,'f',1)+" (nm)";
-
-    AutonomousVehicleProject* avp = autonomousVehicleProject();
-    if(avp)
-    {
-        Platform *platform = avp->currentPlatform();
-        if(platform)
-        {
-            double time = distanceInNMs/platform->speed();
-            if(time < 1.0)
-                label += "\nETE: "+QString::number(int(time*60))+" (min)";
-            else
-                label += "\nETE: "+QString::number(time,'f',2)+" (h)";
-        }
-    }
-
-    setLabel(label);
-}
-
 QPainterPath SurveyPattern::shape() const
 {
     auto lines = getLines();
@@ -409,87 +407,86 @@ QPainterPath SurveyPattern::shape() const
 QList<QList<QGeoCoordinate> > SurveyPattern::getLines() const
 {
     QList<QList<QGeoCoordinate> > ret;
-    if(m_startLocation)
+    if(m_startLocation && m_endLocation)
     {
-        QList<QGeoCoordinate> line;
-        line.append(m_startLocation->location());
-        QGeoCoordinate lastLocation = line.back();
-        if(m_endLocation)
+
+        qreal diagonal_distance = m_startLocation->location().distanceTo(m_endLocation->location());
+        qreal diagonal_angle = m_startLocation->location().azimuthTo(m_endLocation->location());
+
+        qreal line_spacing = 1.0;
+        qreal spacing_angle = 90.0;
+        if(m_spacingLocation)
         {
-            qreal ab_distance = m_startLocation->location().distanceTo(m_endLocation->location());
-            qreal ab_angle = m_startLocation->location().azimuthTo(m_endLocation->location());
+            line_spacing = m_startLocation->location().distanceTo(m_spacingLocation->location());
+            spacing_angle = m_startLocation->location().azimuthTo(m_spacingLocation->location());
+        }
+        else
+            line_spacing = diagonal_distance/10.0;
 
-            qreal ac_distance = 1.0;
-            qreal ac_angle = 90.0;
-            if(m_spacingLocation)
-            {
-                ac_distance = m_startLocation->location().distanceTo(m_spacingLocation->location());
-                ac_angle = m_startLocation->location().azimuthTo(m_spacingLocation->location());
-            }
-            else
-                ac_distance = ab_distance/10.0;
-            qreal leg_heading = ac_angle-90.0;
-            qreal leg_length = ab_distance*qCos(qDegreesToRadians(ab_angle-leg_heading));
-            //qDebug() << "getPath: leg_length: " << leg_length << " leg_heading: " << leg_heading;
-            qreal surveyWidth = ab_distance*qSin(qDegreesToRadians(ab_angle-leg_heading));
+        qreal leg_heading = spacing_angle-90.0;
+        qreal leg_length = diagonal_distance*qCos(qDegreesToRadians(diagonal_angle-leg_heading));
 
-            int line_count = qCeil(surveyWidth/ac_distance);
-            for (int i = 0; i < line_count; i++)
+        qreal surveyWidth = diagonal_distance*qSin(qDegreesToRadians(diagonal_angle-leg_heading));
+
+        int line_count = qCeil(surveyWidth/line_spacing);
+        
+        qreal residual_distance = surveyWidth - ((line_count-1)*line_spacing);
+
+        QList<QGeoCoordinate> line;
+        line.append(m_startLocation->location().atDistanceAndAzimuth(m_alignment*residual_distance/2.0,spacing_angle));
+        line.append(line.back().atDistanceAndAzimuth(leg_length,leg_heading));
+        ret.append(line);
+        
+        for (int i = 1; i < line_count; i++)
+        {
+            line = QList<QGeoCoordinate>();
+            line.append(ret.back().back().atDistanceAndAzimuth(line_spacing,spacing_angle));
+            line.append(ret.back().front().atDistanceAndAzimuth(line_spacing,spacing_angle));
+            ret.append(line);
+        }
+        
+        // Check if we are a child of a SurveyArea.
+        SurveyArea * surveyAreaParent = qobject_cast<SurveyArea*>(parent());
+        if(surveyAreaParent)
+        {
+            typedef bg::model::d2::point_xy<double> BPoint;
+            typedef bg::model::multi_point<BPoint> BMultiPoint;
+            typedef bg::model::linestring<BPoint> BLineString;
+            typedef bg::model::polygon<BPoint> BPolygon;
+            typedef bg::model::multi_linestring<BLineString> BMultiLineString;
+
+            BPolygon area_poly;
+            
+            for(auto wp: surveyAreaParent->waypoints())
             {
-                int dir = i%2;
-                if(m_maxSegmentLength > 0.0 && fabs(leg_length) > m_maxSegmentLength)
-                {
-                    int segCount = ceil(fabs(leg_length)/m_maxSegmentLength);
-                    double segLength = leg_length/double(segCount);
-                    for(int j = 0; j < segCount; j++)
-                    {
-                        line.append(lastLocation.atDistanceAndAzimuth(segLength,leg_heading+dir*180));
-                        lastLocation = line.back();
-                    }
-                }
-                else
-                    line.append(lastLocation.atDistanceAndAzimuth(leg_length,leg_heading+dir*180));
-                ret.append(line);
-                line = QList<QGeoCoordinate>();
-                if (i < line_count-1)
-                {
-                    lastLocation = ret.back().back();
-                    if (m_arcCount > 1)
-                    {
-                        QList<QGeoCoordinate> arc;
-                        qreal deltaAngle = 180.0/float(m_arcCount);
-                        qreal r = ac_distance/2.0;
-                        qreal h = r*cos(deltaAngle*M_PI/360.0);
-                        qreal d = 2.0*h*tan(deltaAngle*M_PI/360.0);
-                        qreal currentAngle = leg_heading+dir*180;
-                        if(leg_length < 0.0)
-                        {
-                            currentAngle += 180.0;
-                            deltaAngle = -deltaAngle;
-                        }
-                        arc.append(lastLocation.atDistanceAndAzimuth(d,currentAngle));
-                        if(dir)
-                            currentAngle += deltaAngle/2.0;
-                        else
-                            currentAngle -= deltaAngle/2.0;
-                        for(int j = 0; j < m_arcCount; j++)
-                        {
-                            if(dir)
-                                currentAngle -= deltaAngle;
-                            else
-                                currentAngle += deltaAngle;
-                            arc.append(arc.back().atDistanceAndAzimuth(d,currentAngle));
-                        }
-                        ret.append(arc);
-                    }
-                    line.append(lastLocation.atDistanceAndAzimuth(ac_distance,ac_angle));
-                    lastLocation = lastLocation.atDistanceAndAzimuth(ac_distance,ac_angle);
-                }
-                else
-                    lastLocation = ret.back().back();
+                BPoint p(wp->location().latitude(), wp->location().longitude());
+                area_poly.outer().push_back(p);
             }
-            //if (ret.length() < 2)
-                //ret.append(m_endLocation->location());
+            
+            bg::correct(area_poly);
+            
+            QList<QList<QGeoCoordinate> > clipped_ret;
+            for(auto line: ret)
+            {
+                BPoint p1(line.front().latitude(),line.front().longitude());
+                BPoint p2(line.back().latitude(),line.back().longitude());
+                BLineString bline;
+                bline.push_back(p1);
+                bline.push_back(p2);
+                
+                BMultiLineString mls;
+                bg::intersection(bline, area_poly, mls);
+                
+                for(auto l: mls)
+                {
+                    QList<QGeoCoordinate> clipped_line;
+                    for(auto p: l)
+                        clipped_line.push_back(QGeoCoordinate(p.x(), p.y()));
+                    clipped_ret.push_back(clipped_line);
+                }
+            }
+            
+            return clipped_ret;
         }
     }
     return ret;
@@ -505,7 +502,7 @@ void SurveyPattern::waypointHasChanged(Waypoint *wp)
 {
     if(!m_internalUpdateFlag)
         calculateFromWaypoints();
-    updateLabel();
+    updateETE();
     emit surveyPatternUpdated();
 }
 
@@ -519,10 +516,6 @@ void SurveyPattern::updateProjectedPoints()
         m_spacingLocation->updateProjectedPoints();
 }
 
-void SurveyPattern::onCurrentPlatformUpdated()
-{
-    updateLabel();
-}
 
 void SurveyPattern::reverseDirection()
 {
@@ -538,6 +531,12 @@ void SurveyPattern::reverseDirection()
     
     setDirectionAndSpacing(direction+180,spacing);
     calculateFromWaypoints();
+    
+    if(m_alignment == start)
+        m_alignment = finish;
+    else if(m_alignment == finish)
+        m_alignment = start;
+    
     emit surveyPatternUpdated();
 
     update();

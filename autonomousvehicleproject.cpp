@@ -20,7 +20,7 @@
 #include "platform.h"
 #include "group.h"
 #include <gdal_priv.h>
-#include "vectordataset.h"
+#include "vector/vectordataset.h"
 #include "behavior.h"
 
 #ifdef AMP_ROS
@@ -28,8 +28,9 @@
 #endif
 
 #include <iostream>
+#include <sstream>
 
-AutonomousVehicleProject::AutonomousVehicleProject(QObject *parent) : QAbstractItemModel(parent), m_currentBackground(nullptr), m_currentPlatform(nullptr), m_currentGroup(nullptr), m_currentSelected(nullptr), m_symbols(new QSvgRenderer(QString(":/symbols.svg"),this)), m_map_scale(1.0)
+AutonomousVehicleProject::AutonomousVehicleProject(QObject *parent) : QAbstractItemModel(parent), m_currentBackground(nullptr), m_currentDepthRaster(nullptr), m_currentPlatform(nullptr), m_currentGroup(nullptr), m_currentSelected(nullptr), m_symbols(new QSvgRenderer(QString(":/symbols.svg"),this)), m_map_scale(1.0), unique_label_counter(0)
 {
     GDALAllRegister();
 
@@ -42,6 +43,7 @@ AutonomousVehicleProject::AutonomousVehicleProject(QObject *parent) : QAbstractI
 #ifdef AMP_ROS
     m_ROSLink =  new ROSLink(this);
     connect(this,&AutonomousVehicleProject::backgroundUpdated,m_ROSLink ,&ROSLink::updateBackground);
+    connect(this,&AutonomousVehicleProject::showRadar,m_ROSLink, &ROSLink::showRadar);
 #endif
 }
 
@@ -185,17 +187,24 @@ BackgroundRaster *AutonomousVehicleProject::getBackgroundRaster() const
     return m_currentBackground;
 }
 
+BackgroundRaster *AutonomousVehicleProject::getDepthRaster() const
+{
+    return m_currentDepthRaster;
+}
+
+
 Platform * AutonomousVehicleProject::createPlatform()
 {
     RowInserter ri(*this,m_currentGroup);
     Platform *p = new Platform(m_currentGroup);
     p->setObjectName("platform");
+    m_currentPlatform = p;
     return p;
 }
 
 Behavior * AutonomousVehicleProject::createBehavior()
 {
-    Behavior *b = potentialParentItemFor("Behavior")->createMissionItem<Behavior>("behavior");
+    Behavior *b = potentialParentItemFor("Behavior")->createMissionItem<Behavior>(generateUniqueLabel("behavior"));
     return b;
 }
 
@@ -221,7 +230,7 @@ MissionItem *AutonomousVehicleProject::potentialParentItemFor(std::string const 
 Waypoint *AutonomousVehicleProject::addWaypoint(QGeoCoordinate position)
 {
     
-    Waypoint *wp = potentialParentItemFor("Waypoint")->createMissionItem<Waypoint>("waypoint");
+    Waypoint *wp = potentialParentItemFor("Waypoint")->createMissionItem<Waypoint>(generateUniqueLabel("waypoint"));
     wp->setLocation(position);
     connect(this,&AutonomousVehicleProject::backgroundUpdated,wp,&Waypoint::updateBackground);
     return wp;
@@ -230,8 +239,8 @@ Waypoint *AutonomousVehicleProject::addWaypoint(QGeoCoordinate position)
 
 SurveyPattern * AutonomousVehicleProject::createSurveyPattern()
 {
-    SurveyPattern *sp = potentialParentItemFor("SurveyPattern")->createMissionItem<SurveyPattern>("pattern");
-    connect(this,&AutonomousVehicleProject::currentPlaformUpdated,sp,&SurveyPattern::onCurrentPlatformUpdated);
+    SurveyPattern *sp = potentialParentItemFor("SurveyPattern")->createMissionItem<SurveyPattern>(generateUniqueLabel("pattern"));
+    connect(this,&AutonomousVehicleProject::currentPlaformUpdated,sp,&GeoGraphicsMissionItem::onCurrentPlatformUpdated);
     connect(this,&AutonomousVehicleProject::backgroundUpdated,sp,&SurveyPattern::updateBackground);
   
     return sp;
@@ -248,7 +257,8 @@ SurveyPattern *AutonomousVehicleProject::addSurveyPattern(QGeoCoordinate positio
 
 SurveyArea * AutonomousVehicleProject::createSurveyArea()
 {
-    SurveyArea *sa = potentialParentItemFor("SurveyArea")->createMissionItem<SurveyArea>("area");
+    SurveyArea *sa = potentialParentItemFor("SurveyArea")->createMissionItem<SurveyArea>(generateUniqueLabel("area"));
+    connect(this,&AutonomousVehicleProject::currentPlaformUpdated,sa,&GeoGraphicsMissionItem::onCurrentPlatformUpdated);
     return sa;
 }
 
@@ -264,7 +274,7 @@ SurveyArea * AutonomousVehicleProject::addSurveyArea(QGeoCoordinate position)
 
 TrackLine * AutonomousVehicleProject::createTrackLine()
 {
-    TrackLine *tl = potentialParentItemFor("TrackLine")->createMissionItem<TrackLine>("trackline");
+    TrackLine *tl = potentialParentItemFor("TrackLine")->createMissionItem<TrackLine>(generateUniqueLabel("trackline"));
     return tl;
 }
 
@@ -317,7 +327,6 @@ void AutonomousVehicleProject::exportHypack(const QModelIndex &index)
             QFile outfile(fname);
             if(outfile.open(QFile::WriteOnly))
             {
-                int arcCount = sp->arcCount();
                 auto lines = sp->getLines();
                 QTextStream outstream(&outfile);
                 outstream.setRealNumberPrecision(8);
@@ -370,23 +379,30 @@ void AutonomousVehicleProject::exportMissionPlan(const QModelIndex& index)
     }
 }
 
+QJsonDocument AutonomousVehicleProject::generateMissionTask(const QModelIndex& index)
+{
+    MissionItem *mi = itemFromIndex(index);
+    QJsonDocument plan;// = generateMissionPlan(index);
+    
+    QJsonArray topArray;
+    if(m_currentPlatform)
+    {
+        QJsonObject platformObject;
+        m_currentPlatform->write(platformObject);
+        topArray.append(platformObject);
+    }
+    QJsonObject miObject;
+    mi->write(miObject);
+    topArray.append(miObject);
+    plan.setArray(topArray);
+    
+    return plan;
+}
+
 void AutonomousVehicleProject::sendToROS(const QModelIndex& index)
 {
-     MissionItem *mi = itemFromIndex(index);
-//     QList<QGeoCoordinate> wps;
-//     auto lines = mi->getLines();
-//     for (auto l: lines)
-//         for (auto p: l)
-//             wps.append(p);
-// 
-// #ifdef AMP_ROS
-//     if(m_ROSLink)
-//     {
-//         m_ROSLink->sendWaypoints(wps);
-//     }
-// #endif
-    // mission_plan format
-    QJsonDocument plan = generateMissionPlan(index);
+    MissionItem *mi = itemFromIndex(index);
+    QJsonDocument plan = generateMissionTask(index);
     
 #ifdef AMP_ROS
     if(m_ROSLink)
@@ -398,6 +414,39 @@ void AutonomousVehicleProject::sendToROS(const QModelIndex& index)
     GeoGraphicsMissionItem * gmi = qobject_cast<GeoGraphicsMissionItem*>(mi);
     if(gmi)
         gmi->lock();
+}
+
+void AutonomousVehicleProject::appendMission(const QModelIndex& index)
+{
+    QJsonDocument plan = generateMissionTask(index);
+#ifdef AMP_ROS
+    if(m_ROSLink)
+    {
+        m_ROSLink->appendMission(plan.toJson());
+    }
+#endif
+}
+
+void AutonomousVehicleProject::prependMission(const QModelIndex& index)
+{
+    QJsonDocument plan = generateMissionTask(index);
+#ifdef AMP_ROS
+    if(m_ROSLink)
+    {
+        m_ROSLink->prependMission(plan.toJson());
+    }
+#endif
+}
+
+void AutonomousVehicleProject::updateMission(const QModelIndex& index)
+{
+    QJsonDocument plan = generateMissionTask(index);
+#ifdef AMP_ROS
+    if(m_ROSLink)
+    {
+        m_ROSLink->updateMission(plan.toJson());
+    }
+#endif
 }
 
 
@@ -424,6 +473,8 @@ void AutonomousVehicleProject::deleteItem(const QModelIndex &index)
         m_scene->removeItem(bgr);
         if(m_currentBackground == bgr)
             m_currentBackground = nullptr;
+        if(m_currentDepthRaster == bgr)
+            m_currentDepthRaster = nullptr;
     }
     QModelIndex p = parent(index);
     MissionItem * pi = itemFromIndex(p);
@@ -487,6 +538,8 @@ void AutonomousVehicleProject::setCurrentBackground(BackgroundRaster *bgr)
         bgr->updateMapScale(m_map_scale);
         m_scene->addItem(bgr);
         emit backgroundUpdated(bgr);
+        if(bgr->depthValid())
+            m_currentDepthRaster = bgr;
     }
 }
 
@@ -669,6 +722,24 @@ void AutonomousVehicleProject::updateMapScale(qreal scale)
         m_currentBackground->updateMapScale(scale);
     m_map_scale = scale;
     
+}
+
+QString AutonomousVehicleProject::generateUniqueLabel(std::string const &prefix)
+{
+    std::stringstream ret;
+    ret << prefix;
+
+    std::stringstream number;
+    number << unique_label_counter;
+    unique_label_counter++;
+    
+    int padding = 4-number.str().length();
+    for(int i = 0; i < padding; i++)
+        ret << '0';
+    
+    ret << number.str();
+    
+    return QString(ret.str().c_str());
 }
 
 AutonomousVehicleProject::RowInserter::RowInserter(AutonomousVehicleProject& project, MissionItem* parent):m_project(project)

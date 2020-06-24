@@ -28,13 +28,13 @@ private slots:
 
     void on_lineSpacingEdit_editingFinished();
 
-    void on_turnArcPointCountLineEdit_editingFinished();
-
     void on_lineLengthLineEdit_editingFinished();
 
     void on_totalWidthLineEdit_editingFinished();
     
     void on_maxSegmentLengthLineEdit_editingFinished();
+    
+    void on_alignmentComboBox_activated();
 
 private:
     Ui::SurveyPatternDetails *ui;

@@ -151,12 +151,25 @@ void ProjectView::mouseMoveEvent(QMouseEvent *event)
 
     QPointF transformedMouse = mapToScene(event->pos());
     BackgroundRaster *bg =  m_project->getBackgroundRaster();
+    BackgroundRaster *dr =  m_project->getDepthRaster();
     if(bg)
     {
         QPointF projectedMouse = bg->pixelToProjectedPoint(transformedMouse);
         posText += " Projected mouse: "+QString::number(projectedMouse.x(),'f')+","+QString::number(projectedMouse.y(),'f');
         QGeoCoordinate llMouse = bg->unproject(projectedMouse);
         posText += " WGS84: " + llMouse.toString(QGeoCoordinate::Degrees);
+        
+        if(dr)
+        {
+            if(dr == bg)
+                posText += " Depth: " +QString::number(dr->getDepth(transformedMouse.x(),transformedMouse.y()));
+            else 
+            {
+                auto p = dr->geoToPixel(llMouse);
+                posText += " Depth: " +QString::number(dr->getDepth(p.x(),p.y()));
+            }
+        }
+        
         if(pendingSurveyPattern)
         {
             if(pendingSurveyPattern->hasSpacingLocation())
@@ -175,6 +188,7 @@ void ProjectView::mouseMoveEvent(QMouseEvent *event)
         if(measuringTool)
             measuringTool->setFinish(llMouse);
     }
+    
     positionLabel->setText(posText);
     QGraphicsView::mouseMoveEvent(event);
 }
@@ -255,11 +269,24 @@ void ProjectView::contextMenuEvent(QContextMenuEvent* event)
         QMenu menu(this);
 
 #ifdef AMP_ROS
-        QAction *loiterAtAction = menu.addAction("Loiter Here");
-        connect(loiterAtAction, &QAction::triggered, this, &ProjectView::sendLoiterAt);
+        QAction *hoverAction = menu.addAction("Hover Here");
+        connect(hoverAction, &QAction::triggered, this, &ProjectView::sendHover);
 
         QAction *gotoAction = menu.addAction("Goto Here");
-        connect(gotoAction, &QAction::triggered, this, &ProjectView::sendGotoAt);
+        connect(gotoAction, &QAction::triggered, this, &ProjectView::sendGoto);
+
+        menu.addSeparator();
+        menu.addAction("(Above moves boat)");
+        menu.addSeparator();
+        menu.addAction("(Below moves camera)");
+        menu.addSeparator();
+        
+        
+        QAction *lookAtAction = menu.addAction("Look Here");
+        connect(lookAtAction, &QAction::triggered, this, &ProjectView::sendLookAt);
+        
+        QAction *lookAtASVAction = menu.addAction("Look at ASV");
+        connect(lookAtASVAction, &QAction::triggered, this, &ProjectView::sendLookAtASV);
 #endif
 
         menu.exec(event->globalPos());
@@ -269,17 +296,29 @@ void ProjectView::contextMenuEvent(QContextMenuEvent* event)
 }
 
 #ifdef AMP_ROS
-void ProjectView::sendLoiterAt()
+void ProjectView::sendHover()
 {
-    m_project->rosLink()->sendLoiter(m_contextMenuLocation);
-    m_project->rosLink()->setHelmMode("loiter");
+    m_project->rosLink()->sendHover(m_contextMenuLocation);
+    m_project->rosLink()->setHelmMode("autonomous");
 }
 
-void ProjectView::sendGotoAt()
+void ProjectView::sendGoto()
 {
     m_project->rosLink()->sendGoto(m_contextMenuLocation);
-    m_project->rosLink()->setHelmMode("survey");
+    m_project->rosLink()->setHelmMode("autonomous");
 }
+
+void ProjectView::sendLookAt()
+{
+    m_project->rosLink()->sendLookAt(m_contextMenuLocation);
+}
+
+void ProjectView::sendLookAtASV()
+{
+    m_project->rosLink()->sendLookAtMode("follow_vehicle");
+}
+
+
 #endif
 
 void ProjectView::updateBackground(BackgroundRaster* bg)

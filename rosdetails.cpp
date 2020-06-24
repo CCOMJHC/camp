@@ -1,5 +1,6 @@
 #include "rosdetails.h"
 #include "ui_rosdetails.h"
+#include <QMenu>
 
 #ifdef AMP_ROS
 #include "roslink.h"
@@ -25,20 +26,6 @@ void ROSDetails::setROSLink(ROSLink* rosLink)
     m_rosLink = rosLink;
     rosLink->setROSDetails(this);
 #endif
-    Qt::CheckState s = Qt::Unchecked;
-#ifdef AMP_ROS
-    if(rosLink->active())
-        s = Qt::Checked;
-#endif
-    ui->activeCheckBox->setCheckState(s);
-}
-
-void ROSDetails::on_activeCheckBox_stateChanged(int state)
-{
-    qDebug() << "ROSDetails active: " << state;
-#ifdef AMP_ROS
-    m_rosLink->setActive(state);
-#endif
 }
 
 void ROSDetails::on_standbyPushButton_clicked(bool checked)
@@ -49,19 +36,11 @@ void ROSDetails::on_standbyPushButton_clicked(bool checked)
 #endif
 }
 
-void ROSDetails::on_surveyPushButton_clicked(bool checked)
+void ROSDetails::on_autonomousPushButton_clicked(bool checked)
 {
-    qDebug() << "ROSDetails helm mode: survey";
+    qDebug() << "ROSDetails helm mode: autonomous";
 #ifdef AMP_ROS
-    m_rosLink->setHelmMode("survey");
-#endif
-}
-
-void ROSDetails::on_loiterPushButton_clicked(bool checked)
-{
-    qDebug() << "ROSDetails helm mode: loiter";
-#ifdef AMP_ROS
-    m_rosLink->setHelmMode("loiter");
+    m_rosLink->setHelmMode("autonomous");
 #endif
 }
 
@@ -94,17 +73,28 @@ void ROSDetails::updateVehicleStatus(const QString& status)
     ui->vehicleStatusTextBrowser->setText(status);
 }
 
-void ROSDetails::on_sendWaypointIndexPushButton_clicked(bool checked)
+void ROSDetails::updateMissionStatus(const QString& status)
 {
-    qDebug() << "send current index: " << ui->sendWaypointSpinBox->value();
+    ui->missionStatusTextBrowser->setText(status);
+}
+
+void ROSDetails::on_gotoLinePushButton_clicked(bool checked)
+{
 #ifdef AMP_ROS
-    m_rosLink->sendWaypointIndexUpdate(ui->sendWaypointSpinBox->value());
+    m_rosLink->sendGotoLine(ui->lineNumberSpinBox->value());
 #endif
 }
 
-
-void ROSDetails::heartbeatDelay(double seconds)
+void ROSDetails::on_startLinePushButton_clicked(bool checked)
 {
+#ifdef AMP_ROS
+    m_rosLink->sendStartLine(ui->lineNumberSpinBox->value());
+#endif
+}
+
+void ROSDetails::heartbeatDelay(double seconds, ros::Time const & last_heartbeat_timestamp, ros::Time const & last_heartbeat_receive_time)
+{
+#ifdef AMP_ROS
     QPalette pal = palette();
     if(seconds < 2.0)
         pal.setColor(QPalette::Background, Qt::green);
@@ -114,6 +104,52 @@ void ROSDetails::heartbeatDelay(double seconds)
         pal.setColor(QPalette::Background, Qt::red);
     this->setAutoFillBackground(true);
     this->setPalette(pal);
+
+    if(last_heartbeat_timestamp.isValid())
+    {
+        ros::Time now = ros::Time::now();
+        ros::Duration last_receive_duration = now-last_heartbeat_receive_time;
+        ros::Duration latency = last_heartbeat_receive_time - last_heartbeat_timestamp;
+        QString msg = "Last HB: " + QString::number(last_receive_duration.toSec()) + "s Latency: " + QString::number(latency.toSec()) +"s";
+        ui->timeLatencyLabel->setText(msg);
+    }
+#endif
+}
+
+void ROSDetails::updateHelmMode(QString const &helm_mode)
+{
+    if(helm_mode == "standby")
+    {
+        QPalette pal = ui->standbyPushButton->palette();
+        pal.setColor(QPalette::Button, Qt::green);
+        ui->standbyPushButton->setPalette(pal);
+        ui->standbyPushButton->setAutoFillBackground(true);
+        ui->autonomousPushButton->setPalette(this->style()->standardPalette());
+    } 
+    else if(helm_mode == "autonomous")
+    {
+        QPalette pal = ui->autonomousPushButton->palette();
+        pal.setColor(QPalette::Button, Qt::green);
+        ui->autonomousPushButton->setPalette(pal);
+        ui->autonomousPushButton->setAutoFillBackground(true);
+        ui->standbyPushButton->setPalette(this->style()->standardPalette());
+    }
+    else if(helm_mode == "manual")
+    {
+        QPalette pal = ui->standbyPushButton->palette();
+        pal.setColor(QPalette::Button, Qt::blue);
+        ui->standbyPushButton->setPalette(pal);
+        ui->standbyPushButton->setAutoFillBackground(true);
+        pal = ui->autonomousPushButton->palette();
+        pal.setColor(QPalette::Button, Qt::blue);
+        ui->autonomousPushButton->setPalette(pal);
+        ui->autonomousPushButton->setAutoFillBackground(true);
+    }
+    else
+    {
+        ui->standbyPushButton->setPalette(this->style()->standardPalette());
+        ui->autonomousPushButton->setPalette(this->style()->standardPalette());
+    }
 }
 
 void ROSDetails::rangeAndBearingUpdate(double range, ros::Time const & range_timestamp, double bearing, ros::Time const & bearing_timestamp)
@@ -144,3 +180,32 @@ void ROSDetails::sogUpdate(qreal sog, qreal sog_avg)
     QString sogLabel = "SOG: " + QString::number(sog,'f',1) + ", avg: " + QString::number(sog_avg,'f',1) + " (200 samples)";
     ui->sogLineEdit->setText(sogLabel);
 }
+
+void ROSDetails::on_missionStatusTextBrowser_customContextMenuRequested(const QPoint &pos)
+{
+        QMenu menu(this);
+
+        QAction *nextItemAction = menu.addAction("Next Mission Item");
+        connect(nextItemAction, &QAction::triggered, this, &ROSDetails::sendNextItem);
+
+        QAction *restartMissionAction = menu.addAction("Restart Mission");
+        connect(restartMissionAction, &QAction::triggered, this, &ROSDetails::restartMission);
+
+        menu.exec(ui->missionStatusTextBrowser->mapToGlobal(pos));
+}
+
+void ROSDetails::sendNextItem()
+{
+#ifdef AMP_ROS
+    m_rosLink->sendNextItem();
+#endif
+}
+
+void ROSDetails::restartMission()
+{
+#ifdef AMP_ROS
+    m_rosLink->restartMission();
+#endif
+}
+
+

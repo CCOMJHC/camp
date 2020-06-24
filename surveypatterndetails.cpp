@@ -8,6 +8,9 @@ SurveyPatternDetails::SurveyPatternDetails(QWidget *parent) :
     updating(false)
 {
     ui->setupUi(this);
+    ui->alignmentComboBox->addItem("Start");
+    ui->alignmentComboBox->addItem("Center");
+    ui->alignmentComboBox->addItem("Finish");
 }
 
 SurveyPatternDetails::~SurveyPatternDetails()
@@ -22,6 +25,7 @@ void SurveyPatternDetails::setSurveyPattern(SurveyPattern *surveyPattern)
     ui->startPoint->setWaypoint(surveyPattern->startLocationWaypoint());
     if(surveyPattern->endLocationWaypoint())
         ui->oppositePoint->setWaypoint(surveyPattern->endLocationWaypoint());
+    ui->alignmentComboBox->setAutoCompletion(surveyPattern->alignment());
     onSurveyPatternUpdated();
 }
 
@@ -31,10 +35,8 @@ void SurveyPatternDetails::onSurveyPatternUpdated()
     {
         ui->lineSpacingEdit->setText(QString::number(m_surveyPattern->spacing()));
         ui->headingEdit->setText(QString::number(m_surveyPattern->direction()));
-        ui->turnArcPointCountLineEdit->setText(QString::number(m_surveyPattern->arcCount()));
         ui->lineLengthLineEdit->setText(QString::number(m_surveyPattern->lineLength()));
         ui->totalWidthLineEdit->setText(QString::number(m_surveyPattern->totalWidth()));
-        ui->maxSegmentLengthLineEdit->setText(QString::number(m_surveyPattern->maxSegmentLength()));
     }
 }
 
@@ -42,10 +44,20 @@ void SurveyPatternDetails::updateSurveyPattern()
 {
     updating = true;
     m_surveyPattern->setDirectionAndSpacing(ui->headingEdit->text().toDouble(),ui->lineSpacingEdit->text().toDouble());
-    m_surveyPattern->setArcCount(ui->turnArcPointCountLineEdit->text().toInt());
-    m_surveyPattern->setMaxSegmentLength(ui->maxSegmentLengthLineEdit->text().toDouble());
     m_surveyPattern->setLineLength(ui->lineLengthLineEdit->text().toDouble());
     m_surveyPattern->setTotalWidth(ui->totalWidthLineEdit->text().toDouble());
+    switch(ui->alignmentComboBox->currentIndex())
+    {
+        case 0:
+            m_surveyPattern->setAlignment(SurveyPattern::Alignment::start);
+            break;
+        case 1:
+            m_surveyPattern->setAlignment(SurveyPattern::Alignment::center);
+            break;
+        case 2:
+            m_surveyPattern->setAlignment(SurveyPattern::Alignment::finish);
+            break;
+    }
     updating = false;
 }
 
@@ -55,11 +67,6 @@ void SurveyPatternDetails::on_headingEdit_editingFinished()
 }
 
 void SurveyPatternDetails::on_lineSpacingEdit_editingFinished()
-{
-    updateSurveyPattern();
-}
-
-void SurveyPatternDetails::on_turnArcPointCountLineEdit_editingFinished()
 {
     updateSurveyPattern();
 }
@@ -75,6 +82,11 @@ void SurveyPatternDetails::on_totalWidthLineEdit_editingFinished()
 }
 
 void SurveyPatternDetails::on_maxSegmentLengthLineEdit_editingFinished()
+{
+    updateSurveyPattern();
+}
+
+void SurveyPatternDetails::on_alignmentComboBox_activated()
 {
     updateSurveyPattern();
 }

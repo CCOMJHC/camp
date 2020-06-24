@@ -1,6 +1,21 @@
 cmake_minimum_required(VERSION 3.5.1)
+project(camp)
 
-project(AutonomousMissionPlanner)
+if(CMAKE_COMPILER_IS_GNUCXX)
+    add_definitions(-std=c++11)
+endif(CMAKE_COMPILER_IS_GNUCXX)
+
+option(AMP_USE_ROS "Build ROS components" ON)
+
+if(AMP_USE_ROS)
+    find_package(catkin REQUIRED COMPONENTS roscpp marine_msgs geographic_visualization_msgs rosgraph_msgs)
+    include_directories(${catkin_INCLUDE_DIRS})
+    add_definitions(-DAMP_ROS)
+    
+    catkin_package(
+    )
+
+endif()
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -19,18 +34,14 @@ endif(Qt5Widgets_FOUND)
 find_package(GDAL REQUIRED)
 include_directories(${GDAL_INCLUDE_DIR})
 
-if(CMAKE_COMPILER_IS_GNUCXX)
-    add_definitions(-std=c++11)
-endif(CMAKE_COMPILER_IS_GNUCXX)
+find_package(Doxygen)
 
-option(AMP_USE_ROS "Build ROS components")
-
-if(AMP_USE_ROS)
-    find_package(catkin REQUIRED COMPONENTS roscpp marine_msgs)
-    include_directories(${catkin_INCLUDE_DIRS})
-    add_definitions(-DAMP_ROS)
+if (DOXYGEN_FOUND)
+    doxygen_add_docs(
+        docs
+        ${PROJECT_SOURCE_DIR}
+    )
 endif()
-
 
 set(SOURCES
     main.cpp
@@ -51,11 +62,11 @@ set(SOURCES
     missionitem.cpp
     platformdetails.cpp
     backgrounddetails.cpp
-    vectordataset.cpp
+    vector/vectordataset.cpp
     group.cpp
-    point.cpp
-    linestring.cpp
-    polygon.cpp
+    vector/point.cpp
+    vector/linestring.cpp
+    vector/polygon.cpp
     geographicsmissionitem.cpp
     modeltest.cpp
     surveyarea.cpp
@@ -63,6 +74,8 @@ set(SOURCES
     behavior.cpp
     behaviordetails.cpp
     rosdetails.cpp
+    astar.cpp
+    radardisplay.cpp
 )
 
 set(HEADERS
@@ -83,17 +96,19 @@ set(HEADERS
     missionitem.h
     platformdetails.h
     backgrounddetails.h
-    vectordataset.h
+    vector/vectordataset.h
     group.h
-    point.h
-    linestring.h
-    polygon.h
+    vector/point.h
+    vector/linestring.h
+    vector/polygon.h
     geographicsmissionitem.h
     surveyarea.h
     measuringtool.h
     behavior.h
     behaviordetails.h
     rosdetails.h
+    astar.h
+    radardisplay.h
 )
 
 if(AMP_USE_ROS)
@@ -106,6 +121,10 @@ set ( RESOURCES
 )
 
 add_executable(AutonomousMissionPlanner ${HEADERS} ${SOURCES} ${RESOURCES})
+
+if(AMP_USE_ROS)
+    add_dependencies(AutonomousMissionPlanner ${catkin_EXPORTED_TARGETS})
+endif()
 
 qt5_use_modules(AutonomousMissionPlanner Widgets Positioning Svg Test)
 

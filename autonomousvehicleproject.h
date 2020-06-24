@@ -35,6 +35,7 @@ public:
     QGraphicsScene *scene() const;
     void openBackground(QString const &fname);
     BackgroundRaster * getBackgroundRaster() const;
+    BackgroundRaster * getDepthRaster() const;
     MissionItem *potentialParentItemFor(std::string const &childType);
 
     Waypoint *addWaypoint(QGeoCoordinate position);
@@ -94,16 +95,23 @@ public:
 #endif
 
     QJsonDocument generateMissionPlan(QModelIndex const &index);
+    QJsonDocument generateMissionTask(QModelIndex const &index);
     
 signals:
     void currentPlaformUpdated();
     void backgroundUpdated(BackgroundRaster *bg);
+    void showRadar(bool show);
 
 public slots:
 
     void exportHypack(QModelIndex const &index);
     void exportMissionPlan(QModelIndex const &index);
+
     void sendToROS(QModelIndex const &index);
+    void appendMission(QModelIndex const &index);
+    void prependMission(QModelIndex const &index);
+    void updateMission(QModelIndex const &index);
+    
     void deleteItems(QModelIndexList const &indices);
     void deleteItem(QModelIndex const &index);
     void deleteItem(MissionItem *item);
@@ -114,6 +122,7 @@ private:
     QGraphicsScene* m_scene;
     QString m_filename;
     BackgroundRaster* m_currentBackground;
+    BackgroundRaster* m_currentDepthRaster;
     Platform* m_currentPlatform;
     Group* m_currentGroup;
     Group* m_root;
@@ -126,6 +135,7 @@ private:
     
 
     void setCurrentBackground(BackgroundRaster *bgr);
+    QString generateUniqueLabel(std::string const &prefix);
 
     
 public:
@@ -144,6 +154,9 @@ private:
     friend class RowInserter;
     
     qreal m_map_scale;
+    
+    // Counter to generate unique labels. Should probably be static, but if only once instance of AutonomousVehicleProject, then doesn't matter.
+    int unique_label_counter; 
 };
 
 

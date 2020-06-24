@@ -7,19 +7,12 @@
     <x>0</x>
     <y>0</y>
     <width>420</width>
-    <height>534</height>
+    <height>475</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout_2">
-     <item>
-      <widget class="QCheckBox" name="activeCheckBox">
-       <property name="text">
-        <string>Active</string>
-       </property>
-      </widget>
-     </item>
      <item>
       <widget class="QLineEdit" name="sogLineEdit">
        <property name="readOnly">
@@ -37,16 +30,9 @@
     </widget>
    </item>
    <item>
-    <widget class="QPushButton" name="surveyPushButton">
+    <widget class="QPushButton" name="autonomousPushButton">
      <property name="text">
-      <string>Survey</string>
-     </property>
-    </widget>
-   </item>
-   <item>
-    <widget class="QPushButton" name="loiterPushButton">
-     <property name="text">
-      <string>Loiter</string>
+      <string>Autonomous</string>
      </property>
     </widget>
    </item>
@@ -76,28 +62,55 @@
     </layout>
    </item>
    <item>
-    <widget class="QTextBrowser" name="vehicleStatusTextBrowser"/>
+    <widget class="QTextBrowser" name="vehicleStatusTextBrowser">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>100</height>
+      </size>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QTextBrowser" name="missionStatusTextBrowser">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>175</height>
+      </size>
+     </property>
+     <property name="contextMenuPolicy">
+      <enum>Qt::CustomContextMenu</enum>
+     </property>
+    </widget>
    </item>
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
-      <widget class="QLabel" name="sendWaypointIndexLabel">
+      <widget class="QLabel" name="lineNumberLabel">
        <property name="text">
-        <string>Waypoint Index</string>
+        <string>Line Number</string>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QSpinBox" name="sendWaypointSpinBox">
+      <widget class="QSpinBox" name="lineNumberSpinBox">
        <property name="maximum">
         <number>999999</number>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="sendWaypointIndexPushButton">
+      <widget class="QPushButton" name="gotoLinePushButton">
        <property name="text">
-        <string>Send wpt index</string>
+        <string>Goto Line</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="startLinePushButton">
+       <property name="text">
+        <string>Start Line</string>
        </property>
       </widget>
      </item>
@@ -107,6 +120,13 @@
     <widget class="QLineEdit" name="rangeBearingLineEdit">
      <property name="readOnly">
       <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="timeLatencyLabel">
+     <property name="text">
+      <string/>
      </property>
     </widget>
    </item>

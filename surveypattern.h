@@ -13,6 +13,12 @@ class SurveyPattern : public GeoGraphicsMissionItem
 public:
     SurveyPattern(MissionItem *parent = 0);
 
+    enum Alignment
+    { 
+        start,  // first line starts at start corner
+        center, // lines are centered between start edge and end edge
+        finish  // last line is along edge with end corner
+    };
     
     int type() const override {return SurveyPatternType;}
     
@@ -35,18 +41,17 @@ public:
 
     double spacing() const;
     double direction() const;
+    Alignment alignment() const;
     double lineLength() const;
     double totalWidth() const;
     int arcCount() const;
     double maxSegmentLength() const;
 
     void setDirectionAndSpacing(double direction, double spacing);
+    void setAlignment(Alignment alignment);
     void setLineLength(double lineLength);
     void setTotalWidth(double totalWidth);
-    void setArcCount(int ac);
-    void setMaxSegmentLength(double maxLength);
 
-    //QList<QGeoCoordinate> getPath() const;
     QList<QList<QGeoCoordinate> > getLines() const override;
     
 signals:
@@ -56,12 +61,10 @@ public slots:
     void waypointHasChanged(Waypoint *wp);
     void waypointAboutToChange();
     void updateProjectedPoints();
-    void onCurrentPlatformUpdated();
     void reverseDirection();
 
 protected:
     Waypoint * createWaypoint();
-    void updateLabel();
     void updateEndLocation();
 
 private:
@@ -71,8 +74,7 @@ private:
     double m_totalWidth;
     double m_spacing;
     double m_direction;
-    int m_arcCount;
-    double m_maxSegmentLength;
+    Alignment m_alignment;
 
     Waypoint * m_spacingLocation;
 
