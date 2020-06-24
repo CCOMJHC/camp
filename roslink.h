@@ -123,6 +123,7 @@ public slots:
     void updateCoverage(QList<QList<QGeoCoordinate> > coverage, QList<QPolygonF> local_coverage);
     void addPing(QList<QGeoCoordinate> ping, QList<QPointF> local_ping);
     void updateDisplayItem(geoviz::Item *item);
+    void clearDisplay();
 
     void recalculatePositions();
     void addAISContact(ROSAISContact *c);

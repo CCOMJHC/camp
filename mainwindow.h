@@ -42,6 +42,7 @@ private slots:
     void on_actionImport_triggered();
     void on_actionBehavior_triggered();
     void on_actionRadar_triggered();
+    void on_actionClear_Display_triggered();
 
 private:
     Ui::MainWindow *ui;

@@ -140,7 +140,7 @@
      <x>0</x>
      <y>0</y>
      <width>892</width>
-     <height>20</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menu_File">
@@ -173,9 +173,16 @@
     </property>
     <addaction name="actionRadar"/>
    </widget>
+   <widget class="QMenu" name="menu_Debug">
+    <property name="title">
+     <string>&amp;Debug</string>
+    </property>
+    <addaction name="actionClear_Display"/>
+   </widget>
    <addaction name="menu_File"/>
    <addaction name="menu_Add"/>
    <addaction name="menuSettings"/>
+   <addaction name="menu_Debug"/>
   </widget>
   <widget class="QToolBar" name="mainToolBar">
    <attribute name="toolBarArea">
@@ -298,6 +305,11 @@
    </property>
    <property name="text">
     <string>Radar</string>
+   </property>
+  </action>
+  <action name="actionClear_Display">
+   <property name="text">
+    <string>&amp;Clear Display</string>
    </property>
   </action>
  </widget>

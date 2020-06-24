@@ -1110,6 +1110,14 @@ void ROSLink::updateDisplayItem(geoviz::Item *item)
     update();   
 }
 
+
+void ROSLink::clearDisplay() {
+    prepareGeometryChange();
+    m_display_items = std::map<std::string,std::shared_ptr<geoviz::Item> >();
+    m_contacts = ContactMap();
+    update();
+}
+
 void ROSLink::showRadar(bool show)
 {
     m_show_radar = show;
