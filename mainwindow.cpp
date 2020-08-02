@@ -313,4 +313,10 @@ void MainWindow::onROSConnected(bool connected)
     ui->rosDetails->setEnabled(connected);
 }
 
+void MainWindow::on_actionClear_Display_triggered() {
+#ifdef AMP_ROS
+    project->rosLink()->clearDisplay();
+#endif
+}
+
 
