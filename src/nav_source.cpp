@@ -75,6 +75,11 @@ void NavSource::trySubscribe()
           m_velocity_sub = nh.subscribe(pending_velocity_topic_, 1, &NavSource::velocityCallback, this);
           pending_velocity_topic_.clear();
         }
+        else if (t.datatype == "geometry_msgs/TwistStamped")
+        {
+          m_velocity_sub = nh.subscribe(pending_velocity_topic_, 1, &NavSource::twistStampedCallback, this);
+          pending_velocity_topic_.clear();
+        }
         break;
       }
   }
@@ -219,6 +224,10 @@ void NavSource::velocityCallback(const geometry_msgs::TwistWithCovarianceStamped
   QMetaObject::invokeMethod(this,"updateSog", Qt::QueuedConnection, Q_ARG(double, sqrt(pow(message->twist.twist.linear.x,2) + pow(message->twist.twist.linear.y, 2))));
 }
 
+void NavSource::twistStampedCallback(const geometry_msgs::TwistStamped::ConstPtr& message)
+{
+  QMetaObject::invokeMethod(this,"updateSog", Qt::QueuedConnection, Q_ARG(double, sqrt(pow(message->twist.linear.x,2) + pow(message->twist.linear.y, 2))));
+}
 
 void NavSource::updateSog(double sog)
 {

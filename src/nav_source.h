@@ -8,6 +8,7 @@
 #include "sensor_msgs/NavSatFix.h"
 #include "sensor_msgs/Imu.h"
 #include "geometry_msgs/TwistWithCovarianceStamped.h"
+#include "geometry_msgs/TwistStamped.h"
 #include "geographic_msgs/GeoPointStamped.h"
 #include "geographic_msgs/GeoPoseStamped.h"
 
@@ -50,6 +51,7 @@ private:
   void positionCallback(const sensor_msgs::NavSatFix::ConstPtr& message);
   void orientationCallback(const sensor_msgs::Imu::ConstPtr& message);
   void velocityCallback(const geometry_msgs::TwistWithCovarianceStamped::ConstPtr& message);
+  void twistStampedCallback(const geometry_msgs::TwistStamped::ConstPtr& message);
   void geoPointCallback(const geographic_msgs::GeoPointStamped::ConstPtr& message);
   void geoPoseCallback(const geographic_msgs::GeoPoseStamped::ConstPtr& message);
 
