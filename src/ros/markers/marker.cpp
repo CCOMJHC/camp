@@ -86,6 +86,7 @@ void Marker::updateMarker(const MarkerData& data)
       {
         auto text = new QGraphicsSimpleTextItem(data.marker.text.c_str(), this);
         text->setBrush(b);
+        text->setTransform(QTransform::fromScale(1.0, -1.0));
         break;
       }
       default:

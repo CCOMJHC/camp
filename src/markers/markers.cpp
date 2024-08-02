@@ -99,11 +99,12 @@ QPainterPath Markers::markerPath(const MarkerData& marker, BackgroundRaster* bg)
       {
         {
           QFont font;
-          int font_size = std::max(5, int(marker.marker.scale.z*bg->scaledPixelSize()*10));
+          int font_size = std::max(1, int(marker.marker.scale.z*bg->scaledPixelSize()));
           font.setPixelSize(font_size);
           QFontMetrics metrics(font);
           auto bounds = metrics.boundingRect(marker.marker.text.c_str());
-          path.addText(QPointF(marker.local_position.x()-bounds.width()*pixel_size_/2.0, marker.local_position.y()+bounds.height()*pixel_size_/2.0), font, marker.marker.text.c_str());
+          //path.addText(QPointF(marker.local_position.x()-bounds.width()*pixel_size_/2.0, marker.local_position.y()+bounds.height()*pixel_size_/2.0), font, marker.marker.text.c_str());
+          path.addText(QPointF(marker.local_position.x(), marker.local_position.y()), font, marker.marker.text.c_str());
 
         }
         break;

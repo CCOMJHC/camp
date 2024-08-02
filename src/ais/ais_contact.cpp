@@ -59,14 +59,24 @@ AISContactState::AISContactState(const marine_ais_msgs::AISContact::ConstPtr& me
   location.location.setLatitude(message->pose.position.latitude);
   location.location.setLongitude(message->pose.position.longitude);
 
-  tf2::Vector3 motion;
-  tf2::fromMsg(message->twist.twist.linear, motion);
-  sog = motion.length();
-  if (motion.length() > 0.0)
+  if(std::isnan(message->twist.twist.linear.x) || std::isnan(message->twist.twist.linear.y))
   {
-    cog = -motion.angle(tf2::Vector3(0.0, 1.0, 0.0))*180/M_PI;
-    if (cog < 0.0)
-     cog += 360.0;
+    cog = std::nan("");
+    sog = std::nan("");
+  }
+  else
+  {
+    tf2::Vector3 motion;
+    tf2::fromMsg(message->twist.twist.linear, motion);
+    sog = motion.length();
+    if (motion.length() > 0.0)
+    {
+      cog = atan2(motion.y(), motion.x())*180.0/M_PI;
+      // ros angle to degree relative to north
+      cog = 90-cog;
+      if (cog < 0.0)
+        cog += 360.0;
+    }
   }
 
   tf2::Quaternion orientation_quat;
@@ -162,8 +172,10 @@ void AISContact::updateLabel()
 
   if(!m_states.empty())
   {
-    label += "\nsog: " + QString::number(int(m_states.rbegin()->second.sog*10)/10.0) + " m/s";
-    label += "\ncog: " + QString::number(int(m_states.rbegin()->second.cog));
+    if(!isnan(m_states.rbegin()->second.sog))
+      label += "\nsog: " + QString::number(int(m_states.rbegin()->second.sog*10)/10.0) + " m/s";
+    if(!isnan(m_states.rbegin()->second.cog))
+     label += "\ncog: " + QString::number(int(m_states.rbegin()->second.cog));
   }
   setLabel(label);
 }
